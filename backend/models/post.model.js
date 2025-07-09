@@ -9,6 +9,10 @@ const postSchema = new mongoose.Schema({
     text:{
         type: String,
     },
+    img: {
+        type: String, // This will store the Cloudinary URL
+        default: null, // Makes the image field optional
+    },
     likes:[
         {
             type: mongoose.Schema.Types.ObjectId,
