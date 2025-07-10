@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema({
         required: true,
         unique: true,
     },
+    bio:{
+        type: String,
+        required: false,
+        default: "",
+    },
     followers: [
         { 
             type: mongoose.Schema.Types.ObjectId, // Character ID
