@@ -17,7 +17,7 @@ import { toast } from "react-hot-toast";
 import { formatPostDate } from "../../utils/date";
 import LoadingSpinner from "./LoadingSpinner";
 
-const Post = ({ post }) => {
+const Post = ({ post, feedType }) => {
 	const [comment, setComment] = useState("");
 
 	// Get current authenticated user
@@ -57,7 +57,6 @@ const Post = ({ post }) => {
 		}
 	});
 
-	// Like/unlike post mutation
 	const { mutate:likePost, isPending:isLiking } = useMutation({
 		mutationFn: async () => {
 			try {
@@ -74,13 +73,21 @@ const Post = ({ post }) => {
 			}
 		},
 		onSuccess: (updatedLikes) => {
-			// Optimistically update post likes in cache instead of refetching
-			queryClient.setQueryData(["posts"], (oldData) => {
-				return oldData.map(p => {
-					if (p._id === post._id) {
-						return {...p, likes:updatedLikes}
-					}
-					return p;
+			// Get all cached queries
+			const cache = queryClient.getQueryCache();
+			const allQueries = cache.getAll();
+			
+			// Find only the posts queries that have data
+			const postsQueries = allQueries.filter(query => 
+				query.queryKey[0] === "posts" && query.state.data
+			);
+			
+			// Update each posts query
+			postsQueries.forEach(query => {
+				queryClient.setQueryData(query.queryKey, (oldData) => {
+				return oldData?.map(p => 
+					p._id === post._id ? { ...p, likes: updatedLikes } : p
+				);
 				});
 			});
 		},
