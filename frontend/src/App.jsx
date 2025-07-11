@@ -13,48 +13,69 @@ import { useQuery } from '@tanstack/react-query';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
 function App() {
-  const {data:authUser, isLoading, error, isError } = useQuery({
-    // We use queryKey to give a unique name to our query and refer to it later
-    queryKey: ['authUser'],
+  // Fetch authenticated user info using React Query
+  const { data: authUser, isLoading, error, isError } = useQuery({
+    queryKey: ['authUser'],  // Unique key to identify this query
     queryFn: async () => {
       try {
         const res = await fetch("api/auth/me");
         const data = await res.json();
+
+        // If backend sends error inside JSON, treat as no user (null)
         if (data.error) return null;
+
+        // Throw error if HTTP status is not OK
         if (!res.ok) {
           throw new Error(data.error || "Something went wrong");
         }
+
         console.log("authUser is here: ", data);
         return data;
       } catch (error) {
         throw new Error(error);
       }
     },
-    retry: false,
   });
 
+  // Show loading spinner while fetching user data
   if (isLoading) {
     return (
       <div className='h-screen flex justify-center items-center'>
         <LoadingSpinner size='lg' />
       </div>
     );
-  };
+  }
 
+  // Log authenticated user data (for debugging)
   console.log(authUser);
 
   return (
     <div className='flex max-w-6xl mx-auto'>
-      {/* Common component bc it's not wrapped with Routes*/}
+      {/* Sidebar only shows when user is logged in */}
       {authUser && <Sidebar />}
+
+      {/* Define app routes */}
       <Routes>
+        {/* Home route: redirects to login if not authenticated */}
         <Route path='/' element={authUser ? <HomePage /> : <Navigate to="/login" />} />
+
+        {/* Login route: redirects to home if already authenticated */}
         <Route path='/login' element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
+
+        {/* Signup route: redirects to home if already authenticated */}
         <Route path='/signup' element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
+
+        {/* Notifications page: protected route */}
         <Route path='/notifications' element={authUser ? <NotificationPage /> : <Navigate to="/login" />} />
+
+        {/* User profile page: protected route */}
         <Route path='/profile/:username' element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
-       </Routes>
+      </Routes>
+
+      {/* RightPanel only shows when user is logged in */}
       {authUser && <RightPanel />}
+
+      {/* Toast notifications container */}
       <Toaster />
     </div>
   );

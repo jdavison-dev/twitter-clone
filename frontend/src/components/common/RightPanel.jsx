@@ -6,7 +6,9 @@ import useFollow from "../../hooks/useFollow";
 import RightPanelSkeleton from "../skeletons/RightPanelSkeleton";
 import LoadingSpinner from "./LoadingSpinner";
 
+// Component that shows suggested users to follow on the right panel
 const RightPanel = () => {
+	// Fetch suggested users using React Query
 	const { data:suggestedUsers, isLoading } = useQuery({
 		queryKey: ["suggestedUsers"],
 		queryFn: async () => {
@@ -16,15 +18,17 @@ const RightPanel = () => {
 				if (!res.ok) {
 					throw new Error(data.error || "Something went wrong");
 				}
-				return data;
+				return data; // Return suggested users
 			} catch (error) {
 				throw new Error(error.message);
 			}
 		}
 	});
 
+	// Get follow handler and loading state from custom hook
 	const { follow, isPending } = useFollow();
 
+	// Return an empty right panel if there are no suggested users
 	if (suggestedUsers?.length === 0) <div className='md:w-64 w-0'></div>;
 
 	return (

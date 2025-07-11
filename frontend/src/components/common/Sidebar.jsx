@@ -1,31 +1,37 @@
+// SVG logo for the app (like a Twitter/X logo)
 import XSvg from "../svgs/X";
 
+// Icon imports
 import { MdHomeFilled } from "react-icons/md";
 import { IoNotifications } from "react-icons/io5";
 import { FaUser } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import { BiLogOut } from "react-icons/bi";
+
+// React Query hooks for data and mutations
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 
 const Sidebar = () => {
+	// Used to update cached data (like clearing it on logout)
 	const queryClient = useQueryClient();
-	const { mutate:logout } = useMutation({
-		mutationFn: async() => {
+
+	// Mutation to log the user out
+	const { mutate: logout } = useMutation({
+		mutationFn: async () => {
 			try {
 				const res = await fetch("/api/auth/logout", {
 					method: "POST",
-				})
+				});
 				const data = await res.json();
-
 				if (!res.ok) throw new Error(data.error || "Something went wrong");
- 
 			} catch (error) {
 				throw new Error(error);
 			}
 		},
 		onSuccess: () => {
+			// Show toast and clear authUser from cache
 			toast.success("Logout successful");
 			queryClient.invalidateQueries({ queryKey: ["authUser"] });
 		},
@@ -33,8 +39,11 @@ const Sidebar = () => {
 			toast.error("Logout failed");
 		},
 	});
-	const { data:authUser }= useQuery({ queryKey: ["authUser"] });
-	
+
+	// Get the currently authenticated user
+	const { data: authUser } = useQuery({ queryKey: ["authUser"] });
+
+	// Optional dummy data fallback (not used here)
 	const data = {
 		fullName: "John Doe",
 		username: "johndoe",
@@ -43,40 +52,37 @@ const Sidebar = () => {
 
 	return (
 		<div className='md:flex-[2_2_0] w-18 max-w-52'>
+			{/* Sticky left sidebar */}
 			<div className='sticky top-0 left-0 h-screen flex flex-col border-r border-gray-700 w-20 md:w-full'>
+
+				{/* Logo */}
 				<Link to='/' className='flex justify-center md:justify-start'>
 					<XSvg className='px-2 w-12 h-12 rounded-full fill-white hover:bg-stone-900' />
 				</Link>
+
+				{/* Navigation links */}
 				<ul className='flex flex-col gap-3 mt-4'>
 					<li className='flex justify-center md:justify-start'>
-						<Link
-							to='/'
-							className='flex gap-3 items-center hover:bg-stone-900 transition-all rounded-full duration-300 py-2 pl-2 pr-4 max-w-fit cursor-pointer'
-						>
+						<Link to='/' className='flex gap-3 items-center hover:bg-stone-900 transition-all rounded-full duration-300 py-2 pl-2 pr-4 max-w-fit cursor-pointer'>
 							<MdHomeFilled className='w-8 h-8' />
 							<span className='text-lg hidden md:block'>Home</span>
 						</Link>
 					</li>
 					<li className='flex justify-center md:justify-start'>
-						<Link
-							to='/notifications'
-							className='flex gap-3 items-center hover:bg-stone-900 transition-all rounded-full duration-300 py-2 pl-2 pr-4 max-w-fit cursor-pointer'
-						>
+						<Link to='/notifications' className='flex gap-3 items-center hover:bg-stone-900 transition-all rounded-full duration-300 py-2 pl-2 pr-4 max-w-fit cursor-pointer'>
 							<IoNotifications className='w-6 h-6' />
 							<span className='text-lg hidden md:block'>Notifications</span>
 						</Link>
 					</li>
-
 					<li className='flex justify-center md:justify-start'>
-						<Link
-							to={`/profile/${authUser?.username}`}
-							className='flex gap-3 items-center hover:bg-stone-900 transition-all rounded-full duration-300 py-2 pl-2 pr-4 max-w-fit cursor-pointer'
-						>
+						<Link to={`/profile/${authUser?.username}`} className='flex gap-3 items-center hover:bg-stone-900 transition-all rounded-full duration-300 py-2 pl-2 pr-4 max-w-fit cursor-pointer'>
 							<FaUser className='w-6 h-6' />
 							<span className='text-lg hidden md:block'>Profile</span>
 						</Link>
 					</li>
 				</ul>
+
+				{/* User info + logout button */}
 				{authUser && (
 					<Link
 						to={`/profile/${authUser.username}`}
@@ -92,7 +98,9 @@ const Sidebar = () => {
 								<p className='text-white font-bold text-sm w-20 truncate'>{authUser?.fullName}</p>
 								<p className='text-slate-500 text-sm'>@{authUser?.username}</p>
 							</div>
-							<BiLogOut className='w-5 h-5 cursor-pointer' 
+							{/* Logout icon */}
+							<BiLogOut
+								className='w-5 h-5 cursor-pointer'
 								onClick={(e) => {
 									e.preventDefault();
 									logout();
@@ -105,4 +113,5 @@ const Sidebar = () => {
 		</div>
 	);
 };
+
 export default Sidebar;
