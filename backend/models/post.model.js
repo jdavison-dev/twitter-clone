@@ -32,6 +32,11 @@ const postSchema = new mongoose.Schema({
             },
         },
     ],
+    quotedPost: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Post",
+        default: null
+    },
 }, { timestamps: true })
 
 const Post = mongoose.model("Post", postSchema);

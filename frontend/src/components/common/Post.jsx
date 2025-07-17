@@ -16,9 +16,11 @@ import { toast } from "react-hot-toast";
 // Utility and components
 import { formatPostDate } from "../../utils/date";
 import LoadingSpinner from "./LoadingSpinner";
+import CreatePost from "../../pages/home/CreatePost";
 
 const Post = ({ post, feedType }) => {
 	const [comment, setComment] = useState("");
+	const [postToQuote, setPostToQuote] = useState(null); // Set when user clicks repost
 
 	// Get current authenticated user
 	const { data:authUser } = useQuery({ queryKey: ["authUser"] });
@@ -36,7 +38,7 @@ const Post = ({ post, feedType }) => {
 	const formattedDate = formatPostDate(post.createdAt);
 
 	// Delete post mutation
-	const { mutate:deletePost, isPending:isDeleting } = useMutation({
+	const { mutate: deletePost, isPending: isDeleting } = useMutation({
 		mutationFn: async () => {
 			try {
 				const res = await fetch(`/api/posts/${post._id}`, {
@@ -57,7 +59,8 @@ const Post = ({ post, feedType }) => {
 		}
 	});
 
-	const { mutate:likePost, isPending:isLiking } = useMutation({
+	// Like post mutation
+	const { mutate: likePost, isPending: isLiking } = useMutation({
 		mutationFn: async () => {
 			try {
 				const res = await fetch(`/api/posts/like/${post._id}`, {
@@ -85,9 +88,9 @@ const Post = ({ post, feedType }) => {
 			// Update each posts query
 			postsQueries.forEach(query => {
 				queryClient.setQueryData(query.queryKey, (oldData) => {
-				return oldData?.map(p => 
-					p._id === post._id ? { ...p, likes: updatedLikes } : p
-				);
+					return oldData?.map(p => 
+						p._id === post._id ? { ...p, likes: updatedLikes } : p
+					);
 				});
 			});
 		},
@@ -97,15 +100,15 @@ const Post = ({ post, feedType }) => {
 	});
 
 	// Comment mutation
-	const { mutate:commentPost, isPending:isCommenting } = useMutation({
-		mutationFn: async () => {
+	const { mutate: commentPost, isPending: isCommenting } = useMutation({
+		mutationFn: async (commentText) => {
 			try {
 				const res = await fetch(`/api/posts/comment/${post._id}`, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
 					},
-					body: JSON.stringify({ text: comment }),
+					body: JSON.stringify({ text: commentText }),
 				})
 				const data = await res.json();
 				if (!res.ok) {
@@ -116,10 +119,33 @@ const Post = ({ post, feedType }) => {
 				throw new Error(error);
 			}
 		},
-		onSuccess: () => {
-			toast.success("Comment posted!");
-			setComment(""); // Clear comment field
-			queryClient.invalidateQueries({ queryKey: ["posts"] });
+		// Comment system to not have to reload the page after commenting
+		onSuccess: (updatedPost) => {
+			// Get all cached queries
+			const cache = queryClient.getQueryCache();
+			const allQueries = cache.getAll();
+			
+			// Find only the posts queries that have data
+			const postsQueries = allQueries.filter(query => 
+				query.queryKey[0] === "posts" && query.state.data
+			);
+			
+			// Update each posts query
+			postsQueries.forEach(query => {
+				queryClient.setQueryData(query.queryKey, (oldData) => {
+					return oldData?.map(p => {
+						if (p._id === updatedPost._id) {
+							return updatedPost;
+						}
+						return p;
+					})
+				});
+			});
+			toast.success("Comment added successfully");
+			setComment("");
+
+			// Outdated, worse UX:
+			// queryClient.invalidateQueries({ queryKey: ["posts"] });
 		},
 		onError: (error) => {
 			toast.error(error.message);
@@ -134,12 +160,23 @@ const Post = ({ post, feedType }) => {
 	const handlePostComment = (e) => {
 		e.preventDefault();
 		if (isCommenting) return;
-		commentPost();
+		commentPost(comment);
 	};
 
 	const handleLikePost = () => {
 		if (isLiking) return;
 		likePost();
+	};
+
+	// Sets the post to be quoted
+	const handleOpenQuoteModal = () => {
+		setPostToQuote(post);
+		document.getElementById(`quote_post_modal${post._id}`).showModal();
+	};
+
+	const handleCloseQuoteModal = () => {
+		document.getElementById(`quote_post_modal${post._id}`).close();
+		setPostToQuote(null);
 	};
 
 	return (
@@ -189,6 +226,39 @@ const Post = ({ post, feedType }) => {
 						)}
 					</div>
 
+					{/* THIS IS THE LOGIC FOR DISPLAYING THE QUOTED POST */}
+					{post.quotedPost && (
+						<div className='border border-gray-700 rounded-lg p-3 mt-3'>
+							{/* User info of the ORIGINAL quoted post */}
+							<div className='flex gap-2 items-center'>
+								<Link to={`/profile/${post.quotedPost.user.username}`}>
+									<div className='w-6 h-6 rounded-full overflow-hidden'>
+										<img src={post.quotedPost.user.profileImg || "/avatar-placeholder.png"} alt={`${post.quotedPost.user.username}'s avatar`} />
+									</div>
+								</Link>
+								<Link to={`/profile/${post.quotedPost.user.username}`} className='font-bold text-sm'>
+									{post.quotedPost.user.fullName}
+								</Link>
+								<span className='text-gray-500 text-xs'>
+									<Link to={`/profile/${post.quotedPost.user.username}`}>@{post.quotedPost.user.username} </Link>
+									<span>·</span>
+									<span> {formatPostDate(post.quotedPost.createdAt)}</span>
+								</span>
+							</div>
+							{/* Text of the ORIGINAL quoted post */}
+							<p className='text-sm mt-1'>{post.quotedPost.text}</p>
+							{/* Image of the ORIGINAL quoted post (if any) */}
+							{post.quotedPost.img && (
+								<img
+									src={post.quotedPost.img}
+									className='h-40 object-contain rounded-lg border border-gray-700 mt-2'
+									alt='Quoted post image'
+								/>
+							)}
+						</div>
+					)}
+					{/* 👆👆👆 END OF QUOTED POST DISPLAY LOGIC  */}
+
 					{/* Post actions: comment, repost, like, bookmark */}
 					<div className='flex justify-between mt-3'>
 						<div className='flex gap-4 items-center w-2/3 justify-between'>
@@ -215,6 +285,9 @@ const Post = ({ post, feedType }) => {
 											</p>
 										)}
 										{/* Render comments */}
+
+										{console.log("Comments array before mapping:", post.comments)}
+
 										{post.comments.map((comment) => (
 											<div key={comment._id} className='flex gap-2 items-start'>
 												<div className='avatar'>
@@ -262,11 +335,33 @@ const Post = ({ post, feedType }) => {
 								</form>
 							</dialog>
 
-							{/* Repost (placeholder) */}
-							<div className='flex gap-1 items-center group cursor-pointer'>
+							{/* Repost Button */}
+							<div className='flex gap-1 items-center group cursor-pointer'
+								onClick={handleOpenQuoteModal}>
 								<BiRepost className='w-6 h-6  text-slate-500 group-hover:text-green-500' />
-								<span className='text-sm text-slate-500 group-hover:text-green-500'>0</span>
+								<span className='text-sm text-slate-500 group-hover:text-green-500'>
+									{post.quoteCount || 0}
+								</span>
 							</div>
+
+							{/* Respost Modal */}
+
+                            {/* Repost (Quote Tweet) Modal */}
+                            <dialog id={`quote_post_modal${post._id}`} className='modal border-none outline-none'>
+                                <div className='modal-box rounded border border-gray-600'>
+                                    <h3 className='font-bold text-lg mb-4'>Quote Post</h3>
+                                    
+                                    {postToQuote && ( 
+                                        <CreatePost 
+                                            initialQuotedPost={postToQuote} 
+                                            onCloseModal={handleCloseQuoteModal} 
+                                        />
+                                    )}
+                                </div>
+                                <form method='dialog' className='modal-backdrop'>
+                                    <button className='outline-none' onClick={handleCloseQuoteModal}>close</button> 
+                                </form>
+                            </dialog>
 
 							{/* Like button */}
 							<div className='flex gap-1 items-center group cursor-pointer' onClick={handleLikePost}>

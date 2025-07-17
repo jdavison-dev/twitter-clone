@@ -4,9 +4,9 @@ import User from '../models/user.model.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 // Create a new post with optional text and image
-export const createPost = async (req, res) => {
+export const createPost = async (req, res) => {    
 	try {
-		const { text } = req.body;
+		const { text, quotedPostId } = req.body;
 		let { img } = req.body;
 		const userId = req.user._id.toString();
 
@@ -15,7 +15,7 @@ export const createPost = async (req, res) => {
 		if (!user) return res.status(404).json({ message: "User not found" });
 
 		// Require at least text or image in the post
-		if (!text && !img) {
+		if (!text && !img && !quotedPostId) {
 			return res.status(400).json({ error: "Post must have text or image" });
 		}
 
@@ -30,10 +30,22 @@ export const createPost = async (req, res) => {
 			user: userId,
 			text,
 			img,
+            quotedPost: quotedPostId || null, // Set to null if not repost
 		});
 
 		await newPost.save();
-		res.status(201).json(newPost);
+
+        const populatedPost = await Post.findById(newPost._id)
+            .populate("user", "-password")
+            .populate({
+                path: 'quotedPost',
+                populate: {
+                    path: 'user',
+                    select: 'username fullName profileImg',
+                }
+            });
+
+		res.status(201).json(populatedPost);
 	} catch (error) {
 		res.status(500).json({ error: "Internal server error" });
 		console.log("Error in createPost controller: ", error);
@@ -92,7 +104,13 @@ export const commentOnPost = async (req, res) => {
         post.comments.push(comment);
         await post.save();
 
-        res.status(200).json(post);
+        // Re-fetch the post and populate the fields so comments display right on recache
+        const updatedPost = await Post.findById(postId).populate({
+            path: 'comments.user',
+            select: 'username fullName profileImg'
+        });
+        
+        res.status(200).json(updatedPost);
     } catch (error) {
         console.log("Error in commentOnPost controller: ", error);
         res.status(500).json({ error: "Internal Server Error" })
@@ -154,7 +172,14 @@ export const getAllPosts = async(req, res) => {
         .populate({
             path: 'comments.user',
             select: "-password"
-        });
+        })
+        .populate({
+            path: 'quotedPost',
+            populate: {
+                path: 'user',
+                select: 'username fullName profileImg'
+            }
+        })
 
         if (posts.length === 0) {
             return res.status(200).json([]);
@@ -184,6 +209,13 @@ export const getLikedPosts = async (req, res) => {
         .populate({
             path: 'comments.user',
             select: "-password"
+        })
+        .populate({ // 🌟 New: Populate quotedPost and its user 🌟
+            path: 'quotedPost',
+            populate: {
+                path: 'user',
+                select: 'username fullName profileImg'
+            }
         });
 
         res.status(200).json(likedPosts);
@@ -212,7 +244,15 @@ export const getFollowingPosts = async (req, res) => {
         .populate({
             path: 'comments.user',
             select: "-password"
+        })
+        .populate({ // 🌟 New: Populate quotedPost and its user 🌟
+            path: 'quotedPost',
+            populate: {
+                path: 'user',
+                select: 'username fullName profileImg'
+            }
         });
+
 
         res.status(200).json(feedPosts);
      } catch (error) { 
@@ -240,6 +280,13 @@ export const getUserPosts = async (req, res) => {
         .populate({
             path: 'comments.user',
             select: "-password"
+        })
+        .populate({ // Populate quotedPost and its user
+            path: 'quotedPost',
+            populate: {
+                path: 'user',
+                select: 'username fullName profileImg'
+            }
         });
 
         res.status(200).json(posts);
